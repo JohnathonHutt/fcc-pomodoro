@@ -13,7 +13,7 @@ class Pom extends React.Component {
       currType: "session",
       isSessionInitialized: false,
       paused: false,
-      accurateTime: null
+      timer: null
     };
     this.handleClick = this.handleClick.bind(this);
     this.initializeTimer = this.initializeTimer.bind(this);
@@ -25,12 +25,20 @@ class Pom extends React.Component {
     //set based on currType
     console.log("Timer has been initialized");
     let intervalTime;
-    intervalTime = (this.state.currType === "session") ? this.state.sessionLength : this.state.breakLength;
+    if (!this.state.paused) {
+      //if session is not initialized
+      intervalTime = (this.state.currType === "session") ? this.state.sessionLength : this.state.breakLength;
+    } else {
+      //if session is paused - set intervalTime to currLength in minutes
+      let time = this.state.currLength.split(":");
+      intervalTime = Number(time[0]) + Number(time[1] / 60);
+    }
+
     let date = new Date();
     let startTime = new Date(date.getTime() + intervalTime*60000).getTime();
     //set interval
     this.setState({
-      accurateTime: setInterval(() => this.updateTime(startTime), 1000)
+      timer: setInterval(() => this.updateTime(startTime), 500)
     });
   }
 
@@ -42,9 +50,12 @@ class Pom extends React.Component {
     });
     if (this.state.currLength <= "0:00") {
       //make the beep happen
-      this.setState({
-        currType: "break"
-      });
+      //set delay - then switch over to other time
+      setTimeout(function() {
+        this.setState({
+          currType: (this.state.currType === "break") ? "session" : "break"
+        });
+      }, 1000);
       this.initializeTimer();
     }
   }
@@ -52,12 +63,17 @@ class Pom extends React.Component {
   pauseAndUnpause() {
     console.log("pauseAndUnpause has been activated");
     if (!this.state.paused) {
+      //pause
       this.setState({
         paused: true
       });
-      clearInterval(this.state.accurateTime);
+      clearInterval(this.state.timer);
     } else {
-      //restart from remaining time
+      //unpause
+      this.setState({
+        paused: false
+      });
+      this.initializeTimer();
     }
   }
 
@@ -103,10 +119,6 @@ class Pom extends React.Component {
         break;
       case "reset":
         window.location.reload();
-        // this.setState({
-        //   currLength: this.state.sessionLength,
-        //   isSessionInitialized: false
-        // });
         break;
       default: console.log(event.target.id);
     }
@@ -118,7 +130,7 @@ class Pom extends React.Component {
         <div>
           <Break breakLength={this.state.breakLength} handleClick={this.handleClick} />
           <Session sessionLength={this.state.sessionLength} handleClick={this.handleClick} />
-          <Timer isSessionInitialized={this.state.isSessionInitialized} currLength={this.state.currLength} handleClick={this.handleClick} />
+          <Timer paused={this.state.paused} isSessionInitialized={this.state.isSessionInitialized} currLength={this.state.currLength} handleClick={this.handleClick} />
         </div>
       </div>
     );
@@ -154,10 +166,10 @@ function Session(props) {
 function Timer(props) {
   return (
     <div className="unit-wrapper">
-      <p id="timer-label">{(props.isSessionInitialized) ? "Session" : "Paused"}</p>
+      <p id="timer-label">{(props.isSessionInitialized || !props.paused) ? "Session" : "Paused"}</p>
       <div id="time-left" className="display">{props.currLength}</div>
       <div>
-        <button id="start_stop" onClick={props.handleClick}>{(props.isSessionInitialized) ? "pause" : "start"}</button>
+        <button id="start_stop" onClick={props.handleClick}>{(props.isSessionInitialized || !props.paused) ? "pause" : "start"}</button>
         <button id="reset" onClick={props.handleClick}>reset</button>
       </div>
     </div>
@@ -165,3 +177,5 @@ function Timer(props) {
 }
 
 export default Pom;
+
+//find out how to use just one value - isSessionInitialized or paused
