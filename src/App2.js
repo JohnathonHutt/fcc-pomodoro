@@ -11,21 +11,18 @@ class Pom extends React.Component {
       sessionLength: 25,
       currLength: "25:00",
       currType: "session",
-      isSessionInitialized: false,
-      paused: false,
       timer: null
     };
     this.handleClick = this.handleClick.bind(this);
-    this.initializeTimer = this.initializeTimer.bind(this);
     this.updateTime = this.updateTime.bind(this);
-    this.pauseAndUnpause = this.pauseAndUnpause.bind(this);
     this.resetState = this.resetState.bind(this);
     this.updateCurrLength = this.updateCurrLength.bind(this);
     this.setTimer = this.setTimer.bind(this);
+    this.switchBetweenBreakAndSession = this.switchBetweenBreakAndSession.bind(this);
   }
 
   updateCurrLength() {
-    if (!this.state.isSessionInitialized || this.state.paused) {
+    if (!this.state.timer) {
       let sL;
       if (this.state.currType === "session") {
         sL = (this.state.sessionLength < 10) ? "0" + this.state.sessionLength + ":00" : this.state.sessionLength + ":00";
@@ -38,74 +35,57 @@ class Pom extends React.Component {
     }
   }
 
-  initializeTimer() {
-    //method uses setTimer helper
-    //set based on currType
-    console.log("Timer has been initialized");
-    let intervalTime;
-    if (!this.state.paused) {
-      //for first play or session-break change - set time based on session/break length
-      intervalTime = (this.state.currType === "session") ? this.state.sessionLength : this.state.breakLength;
+  setTimer() {
+    if (!this.state.timer) {
       this.setState({
-        currLength: String(intervalTime) + ":00"
+        timer: setInterval(() => this.updateTime(), 1000)
       });
-      //set timer after interval for start time (e.g. 5:00)
-      setTimeout(() => this.setTimer(intervalTime), 950);
-    } else {
-      //if paused
-      this.setState({
-        paused: false
-      });
-      //Set intervalTime to currLength in minutes
-      let time = this.state.currLength.split(":");
-      intervalTime = Number(time[0]) + Number(time[1] / 60);
-      this.setTimer(intervalTime);
     }
   }
 
-  setTimer(intervalTime) {
-    //initialize timer helper function
-    let date = new Date();
-    let startTime = new Date(date.getTime() + intervalTime*60000).getTime();
-    //set interval
+  updateTime() {
+    if (this.state.currLength === "00:00") {
+      this.switchBetweenBreakAndSession();
+    } else {
+      let currTime = this.state.currLength.split(":");
+      console.log("currTime = " + currTime);
+      if (currTime[1] === "00") {
+        currTime[0] = Number(currTime[0]) - 1;
+        if (Number(currTime[0]) < 10) {
+          currTime[0] = "0" + currTime[0];
+        }
+        currTime[1] = "59";
+      } else {
+        currTime[1] = Number(currTime[1]) - 1;
+        if (Number(currTime[1]) < 10) {
+          currTime[1] = "0" + currTime[1];
+        }
+      }
+      console.log("currTime = " + currTime);
+      this.setState({
+        currLength: currTime.join(":")
+      });
+      //check for end of session/break - play audio
+      if (this.state.currLength === "00:00") {
+        document.getElementById("beep").play(); //play audio
+      }
+    }
+  }
+
+  switchBetweenBreakAndSession() {
+    //updateTime helper function - uses updateCurrLength
+    let newType = (this.state.currType === "session") ? "break" : "session";
+    let sL;
+    if (newType === "session") {
+      sL = (this.state.sessionLength < 10) ? "0" + this.state.sessionLength + ":00" : this.state.sessionLength + ":00";
+    } else { //if currType === "break"
+      sL = (this.state.breakLength < 10) ? "0" + this.state.breakLength + ":00" : this.state.breakLength + ":00";
+    }
+    console.log("sL: " + sL + "newType: " + newType);
     this.setState({
-      timer: setInterval(() => this.updateTime(startTime), 50)
+      currType: newType,
+      currLength: sL
     });
-  }
-
-  updateTime(startTime) {
-    let currTime = new Date().getTime();
-    let diff = (startTime - currTime) / 1000;
-    console.log(diff);
-
-    if (diff <= 1) {
-      this.setState({
-        currLength: "00:00"
-      });
-      document.getElementById("beep").play(); //play audio element
-      clearInterval(this.state.timer);
-      this.setState({
-        currType: (this.state.currType === "break") ? "session" : "break"
-      });
-      setTimeout(() => this.initializeTimer(), 950);
-    } else {
-      this.setState({
-        currLength: `${(Math.floor(diff/60) < 10) ? "0" + Math.floor(diff/60) : Math.floor(diff/60)}:${(Math.floor(diff%60) < 10) ? "0" + Math.floor(diff%60) : Math.floor(diff%60)}`
-      });
-    }
-  }
-
-  pauseAndUnpause() {
-    console.log("pauseAndUnpause has been activated");
-    if (!this.state.paused) {
-      //pause
-      clearInterval(this.state.timer);
-      this.setState({
-        paused: true
-      });
-    } else {
-      setTimeout(() => this.initializeTimer(), 950);
-    }
   }
 
   resetState() {
@@ -116,8 +96,6 @@ class Pom extends React.Component {
       sessionLength: 25,
       currLength: "25:00",
       currType: "session",
-      isSessionInitialized: false,
-      paused: false,
       timer: null
     });
     const beep = document.getElementById("beep"); //stop audio
@@ -129,7 +107,7 @@ class Pom extends React.Component {
     console.log(event.target.id);
     switch (event.target.id) {
       case "break-increment":
-        if (!this.state.isSessionInitialized || this.state.paused) {
+        if (!this.state.timer) {
           this.setState({
             breakLength: (this.state.breakLength === 60) ? 60 : this.state.breakLength += 1
           });
@@ -139,7 +117,7 @@ class Pom extends React.Component {
         }
         break;
       case "break-decrement":
-        if (!this.state.isSessionInitialized || this.state.paused) {
+        if (!this.state.timer) {
           this.setState({
             breakLength: (this.state.breakLength === 1) ? 1 : this.state.breakLength -= 1
           });
@@ -149,7 +127,7 @@ class Pom extends React.Component {
         }
         break;
       case "session-increment":
-        if (!this.state.isSessionInitialized || this.state.paused) {
+        if (!this.state.timer) {
           this.setState({
             sessionLength: (this.state.sessionLength === 60) ? 60 : this.state.sessionLength += 1
           });
@@ -159,7 +137,7 @@ class Pom extends React.Component {
         }
         break;
       case "session-decrement":
-        if (!this.state.isSessionInitialized || this.state.paused) {
+        if (!this.state.timer) {
           this.setState({
             sessionLength: (this.state.sessionLength === 1) ? 1 : this.state.sessionLength -= 1
           });
@@ -169,18 +147,17 @@ class Pom extends React.Component {
         }
         break;
       case "start_stop":
-        if (!this.state.isSessionInitialized) {
-          this.setState({
-            isSessionInitialized: true
-          });
-          this.initializeTimer();
+        if (!this.state.timer) {
+          this.setTimer();
         } else {
-          this.pauseAndUnpause();
+          clearInterval(this.state.timer);
+          this.setState({
+            timer: null
+          });
         }
         break;
       case "reset":
         this.resetState();
-        // window.location.reload();
         break;
       default: console.log(event.target.id);
     }
@@ -196,7 +173,7 @@ class Pom extends React.Component {
           <div className="clock-border">
             <Break breakLength={this.state.breakLength} handleClick={this.handleClick} />
             <Session sessionLength={this.state.sessionLength} handleClick={this.handleClick} />
-            <Timer currType={this.state.currType} paused={this.state.paused} isSessionInitialized={this.state.isSessionInitialized} currLength={this.state.currLength} handleClick={this.handleClick} />
+            <Timer currType={this.state.currType} timer={this.state.timer} isSessionInitialized={this.state.isSessionInitialized} currLength={this.state.currLength} handleClick={this.handleClick} />
           </div>
         </div>
         <div>
@@ -242,7 +219,7 @@ function Timer(props) {
       <p id="timer-label" className="label">{(props.currType === "session") ? "Session" : "Break"}</p>
       <div id="time-left" className="display">{props.currLength}</div>
       <div>
-        <button id="start_stop" className="play-button" onClick={props.handleClick}>{(!props.isSessionInitialized || props.paused) ? "start" : "pause"}</button>
+        <button id="start_stop" className="play-button" onClick={props.handleClick}>{(!props.timer) ? "start" : "pause"}</button>
         <button id="reset" onClick={props.handleClick}>reset</button>
         <audio id="beep" src="https://s3.amazonaws.com/freecodecamp/drums/Chord_3.mp3" type="audio/mp3"></audio>
       </div>
